@@ -4,5 +4,6 @@ SQLAlchemy==2.0.36
 aiosqlite==0.20.0
 asyncpg==0.30.0
 PyJWT==2.10.1
+greenlet
 slowapi==0.1.9
 python-multipart==0.0.20
