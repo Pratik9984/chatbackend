@@ -199,7 +199,6 @@ async def verify_otp(req: OTPVerify, request: Request, db: AsyncSession = Depend
             "phone_number": user.phone_number,
             "display_name": user.display_name,
             "avatar_url": user.avatar_url,
-            "public_key": user.public_key,
         },
     }
 
@@ -309,7 +308,6 @@ async def admin_dashboard():
 class ProfileUpdate(BaseModel):
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
-    public_key: Optional[str] = None
 
 @app.get("/profile/me", tags=["profile"])
 async def get_my_profile(phone: str = Depends(current_user), db: AsyncSession = Depends(get_db)):
@@ -321,7 +319,6 @@ async def get_my_profile(phone: str = Depends(current_user), db: AsyncSession = 
         "phone_number": user.phone_number,
         "display_name": user.display_name,
         "avatar_url": user.avatar_url,
-        "public_key": user.public_key,
     }
 
 @app.patch("/profile/me", tags=["profile"])
@@ -338,8 +335,6 @@ async def update_profile(
         user.display_name = req.display_name
     if req.avatar_url is not None:
         user.avatar_url = req.avatar_url
-    if req.public_key is not None:
-        user.public_key = req.public_key
     await db.commit()
     return {"message": "Profile updated"}
 
@@ -353,7 +348,6 @@ async def get_profile(phone_number: str, _: str = Depends(current_user), db: Asy
         "phone_number": user.phone_number,
         "display_name": user.display_name,
         "avatar_url": user.avatar_url,
-        "public_key": user.public_key,
         "is_online": manager.is_online(phone_number),
         "last_seen": user.last_seen.isoformat() if user.last_seen else None,
     }
