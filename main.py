@@ -53,7 +53,7 @@ ALLOWED_MIME = {
     "application/pdf": "pdf",
 }
 
-BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+BASE_URL = os.getenv("BASE_URL", "https://chatbackend-46yy.onrender.com").rstrip("/")
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
 ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "*").split(",")]
 
