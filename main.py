@@ -767,3 +767,30 @@ async def ws_endpoint(websocket: WebSocket, token: str):
                 user.last_seen = datetime.now(timezone.utc)
                 await db.commit()
         await manager.broadcast(watchers, {"type": "presence", "user": phone, "online": False})
+
+
+# ==========================================
+# KEEP-ALIVE (PREVENT RENDER SLEEP)
+# ==========================================
+import asyncio
+import urllib.request
+
+async def _keep_alive_loop():
+    """
+    Background task that pings the server's own /health endpoint every 10 minutes.
+    This prevents Render free tier instances from sleeping due to inactivity.
+    """
+    while True:
+        await asyncio.sleep(600)  # 600 seconds = 10 minutes
+        try:
+            url = f"{BASE_URL}/health"
+            # Run the blocking HTTP request in a background thread to avoid freezing the async loop
+            await asyncio.to_thread(urllib.request.urlopen, url)
+            print(f"[Keep-Alive] Pinged {url} successfully.")
+        except Exception as e:
+            print(f"[Keep-Alive] Ping failed: {e}")
+
+@app.on_event("startup")
+async def start_keep_alive():
+    """Starts the keep-alive background task when the server boots up."""
+    asyncio.create_task(_keep_alive_loop())
