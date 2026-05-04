@@ -4,7 +4,6 @@ import random
 import platform
 import time
 import uuid
-import math
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -200,11 +199,12 @@ async def verify_otp(req: OTPVerify, request: Request, db: AsyncSession = Depend
             "phone_number": user.phone_number,
             "display_name": user.display_name,
             "avatar_url": user.avatar_url,
+            "public_key": user.public_key,
         },
     }
 
 # ==========================================
-# ADMIN DASHBOARD - OTPs
+# ADMIN DASHBOARD 
 # ==========================================
 
 @app.get("/admin/api/otps", tags=["admin"])
@@ -229,7 +229,7 @@ async def get_admin_otps():
 
 @app.get("/admin", response_class=HTMLResponse, tags=["admin"])
 async def admin_dashboard():
-    """Serves the HTML Admin Dashboard for OTPs."""
+    """Serves the HTML Admin Dashboard."""
     html_content = """
     <!DOCTYPE html>
     <html lang="en">
@@ -240,10 +240,7 @@ async def admin_dashboard():
         <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
             .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-            .header-flex { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; margin-bottom: 20px; padding-bottom: 10px; }
-            h1 { font-size: 24px; margin: 0; }
-            .nav-link { color: #007bff; text-decoration: none; font-weight: 500; }
-            .nav-link:hover { text-decoration: underline; }
+            h1 { font-size: 24px; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
             table { width: 100%; border-collapse: collapse; margin-top: 10px; }
             th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
             th { background-color: #f8f9fa; font-weight: 600; }
@@ -254,10 +251,7 @@ async def admin_dashboard():
     </head>
     <body>
         <div class="container">
-            <div class="header-flex">
-                <h1>Active OTPs</h1>
-                <a href="/admin/files" class="nav-link">View Uploaded Files →</a>
-            </div>
+            <h1>Active OTPs</h1>
             <p>This page auto-refreshes every 2 seconds.</p>
             <table>
                 <thead>
@@ -299,6 +293,7 @@ async def admin_dashboard():
                 }
             }
 
+            // Fetch immediately, then every 2 seconds
             fetchOTPs();
             setInterval(fetchOTPs, 2000);
         </script>
@@ -308,156 +303,13 @@ async def admin_dashboard():
     return html_content
 
 # ==========================================
-# ADMIN DASHBOARD - FILES
-# ==========================================
-
-def format_size(size_bytes):
-    if size_bytes == 0:
-        return "0 B"
-    size_name = ("B", "KB", "MB", "GB", "TB")
-    i = int(math.floor(math.log(size_bytes, 1024)))
-    p = math.pow(1024, i)
-    s = round(size_bytes / p, 2)
-    return f"{s} {size_name[i]}"
-
-@app.get("/admin/api/files", tags=["admin"])
-async def get_admin_files():
-    """Returns a list of all uploaded files."""
-    files_data = []
-    if os.path.exists(UPLOAD_DIR):
-        for filename in os.listdir(UPLOAD_DIR):
-            filepath = os.path.join(UPLOAD_DIR, filename)
-            if os.path.isfile(filepath):
-                stat = os.stat(filepath)
-                size = format_size(stat.st_size)
-                mtime = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-                
-                ext = filename.split('.')[-1].lower() if '.' in filename else ''
-                is_image = ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']
-                
-                files_data.append({
-                    "filename": filename,
-                    "url": f"/uploads/{filename}", 
-                    "size": size,
-                    "uploaded_at": mtime,
-                    "is_image": is_image,
-                    "ext": ext.upper()
-                })
-    
-    files_data.sort(key=lambda x: x["uploaded_at"], reverse=True)
-    return {"files": files_data}
-
-@app.get("/admin/files", response_class=HTMLResponse, tags=["admin"])
-async def admin_files_dashboard():
-    """Serves the HTML Admin Dashboard for uploaded files."""
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Admin Dashboard - File Viewer</title>
-        <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
-            .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-            .header-flex { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; margin-bottom: 20px; padding-bottom: 10px; }
-            h1 { font-size: 24px; margin: 0; }
-            .nav-link { color: #007bff; text-decoration: none; font-weight: 500; }
-            .nav-link:hover { text-decoration: underline; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; vertical-align: middle; }
-            th { background-color: #f8f9fa; font-weight: 600; }
-            .empty-state { text-align: center; padding: 40px; color: #777; font-style: italic; }
-            .badge { display: inline-block; padding: 4px 8px; font-size: 12px; border-radius: 4px; background: #e0e0e0; font-weight: bold; }
-            .badge-img { background: #d4edda; color: #155724; }
-            .badge-pdf { background: #f8d7da; color: #721c24; }
-            .badge-aud { background: #cce5ff; color: #004085; }
-            .badge-vid { background: #fff3cd; color: #856404; }
-            .preview-img { max-width: 60px; max-height: 60px; border-radius: 4px; object-fit: cover; border: 1px solid #ccc; }
-            .action-btn { background: #007bff; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 14px; }
-            .action-btn:hover { background: #0056b3; }
-            .filename { word-break: break-all; font-family: monospace; font-size: 13px; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header-flex">
-                <h1>Uploaded Documents & Media</h1>
-                <a href="/admin" class="nav-link">← Back to OTPs</a>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th width="80">Preview</th>
-                        <th>File Info</th>
-                        <th width="120">Size</th>
-                        <th width="180">Uploaded At</th>
-                        <th width="100">Action</th>
-                    </tr>
-                </thead>
-                <tbody id="files-table-body">
-                    <tr><td colspan="5" style="text-align:center;">Loading files...</td></tr>
-                </tbody>
-            </table>
-        </div>
-
-        <script>
-            function getBadgeClass(ext) {
-                if (['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP'].includes(ext)) return 'badge-img';
-                if (ext === 'PDF') return 'badge-pdf';
-                if (['WEBM', 'M4A'].includes(ext)) return 'badge-aud';
-                if (['MP4'].includes(ext)) return 'badge-vid';
-                return '';
-            }
-
-            async function fetchFiles() {
-                try {
-                    const response = await fetch('/admin/api/files');
-                    const data = await response.json();
-                    const tbody = document.getElementById('files-table-body');
-                    
-                    if (data.files.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No files have been uploaded yet.</td></tr>';
-                        return;
-                    }
-
-                    tbody.innerHTML = data.files.map(f => `
-                        <tr>
-                            <td>
-                                ${f.is_image 
-                                    ? `<a href="${f.url}" target="_blank"><img src="${f.url}" class="preview-img" alt="preview"/></a>` 
-                                    : `<span class="badge ${getBadgeClass(f.ext)}">${f.ext}</span>`
-                                }
-                            </td>
-                            <td class="filename">${f.filename}</td>
-                            <td>${f.size}</td>
-                            <td style="font-size: 14px; color: #555;">${f.uploaded_at}</td>
-                            <td>
-                                <a href="${f.url}" target="_blank" class="action-btn">View / Download</a>
-                            </td>
-                        </tr>
-                    `).join('');
-                } catch (error) {
-                    console.error('Failed to fetch files:', error);
-                    document.getElementById('files-table-body').innerHTML = '<tr><td colspan="5" class="empty-state" style="color:red;">Error loading files. Check console.</td></tr>';
-                }
-            }
-
-            fetchFiles();
-        </script>
-    </body>
-    </html>
-    """
-    return html_content
-
-
-# ==========================================
 # PROFILE & CONTACTS
 # ==========================================
 
 class ProfileUpdate(BaseModel):
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    public_key: Optional[str] = None
 
 @app.get("/profile/me", tags=["profile"])
 async def get_my_profile(phone: str = Depends(current_user), db: AsyncSession = Depends(get_db)):
@@ -469,6 +321,7 @@ async def get_my_profile(phone: str = Depends(current_user), db: AsyncSession = 
         "phone_number": user.phone_number,
         "display_name": user.display_name,
         "avatar_url": user.avatar_url,
+        "public_key": user.public_key,
     }
 
 @app.patch("/profile/me", tags=["profile"])
@@ -485,6 +338,8 @@ async def update_profile(
         user.display_name = req.display_name
     if req.avatar_url is not None:
         user.avatar_url = req.avatar_url
+    if req.public_key is not None:
+        user.public_key = req.public_key
     await db.commit()
     return {"message": "Profile updated"}
 
@@ -498,6 +353,7 @@ async def get_profile(phone_number: str, _: str = Depends(current_user), db: Asy
         "phone_number": user.phone_number,
         "display_name": user.display_name,
         "avatar_url": user.avatar_url,
+        "public_key": user.public_key,
         "is_online": manager.is_online(phone_number),
         "last_seen": user.last_seen.isoformat() if user.last_seen else None,
     }
